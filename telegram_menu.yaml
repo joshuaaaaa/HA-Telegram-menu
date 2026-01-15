@@ -24,6 +24,8 @@ automation:
             - "🆕 Updaty:/callback_updates, 📈 Statistiky:/callback_stats"
             - "👥 Osoby:/callback_persons, 📅 Kalendář:/callback_calendar"
             - "🌅 Slunce:/callback_sun, 🗒️ Notifikace:/callback_notifications"
+            - "📷 Kamery:/callback_cameras, 🪟 Covers:/callback_covers"
+            - "💨 Ventilátory:/callback_fans, 🌡️ Zvlhčovače:/callback_humidifiers"
 
   # HLAVNÍ MENU - CALLBACK
   - alias: "Telegram: Menu callback"
@@ -48,6 +50,8 @@ automation:
             - "🆕 Updaty:/callback_updates, 📈 Statistiky:/callback_stats"
             - "👥 Osoby:/callback_persons, 📅 Kalendář:/callback_calendar"
             - "🌅 Slunce:/callback_sun, 🗒️ Notifikace:/callback_notifications"
+            - "📷 Kamery:/callback_cameras, 🪟 Covers:/callback_covers"
+            - "💨 Ventilátory:/callback_fans, 🌡️ Zvlhčovače:/callback_humidifiers"
 
   - alias: Telegram switches seznam
     trigger:
@@ -998,3 +1002,491 @@ automation:
             {% endif %}
           inline_keyboard:
             - "🔄 Refresh:/air, 🏠 Menu:/callback_menu"
+
+  # KAMERY
+  - alias: Telegram kamery prehled
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_cameras
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>📷 Přehled kamer</b>
+
+            {% set cameras = states.camera | list %}
+            {% if cameras | count > 0 %}
+            <b>Dostupné kamery ({{ cameras|count }}):</b>
+            {% for cam in cameras %}
+            • {{ cam.name }}
+              {% if cam.state != 'unavailable' %}└ Stav: {{ cam.state }}{% endif %}
+              {% if cam.attributes.brand is defined %}└ {{ cam.attributes.brand }}{% endif %}
+            {% endfor %}
+
+            <i>Pro zobrazení snímku stiskni tlačítko kamery níže</i>
+            {% else %}
+            <i>❌ Žádné kamery nenalezeny</i>
+            {% endif %}
+          inline_keyboard: >
+            {% set cameras = states.camera | list %}
+            {% set buttons = [] %}
+            {% for cam in cameras %}
+              {% set btn = "📷 " ~ cam.name ~ ":/callback_camera_" ~ cam.entity_id.replace('camera.','') %}
+              {% set buttons = buttons + [btn] %}
+            {% endfor %}
+            {% if buttons|count > 0 %}
+              {% for i in range(0, buttons|count, 2) %}
+                {% if i+1 < buttons|count %}
+                  - "{{ buttons[i] }}, {{ buttons[i+1] }}"
+                {% else %}
+                  - "{{ buttons[i] }}"
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+            - "🔄 Refresh:/callback_cameras, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram kamera snapshot
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.command.startswith('/callback_camera_') }}"
+    action:
+      - variables:
+          camera_id: "{{ trigger.event.data.command.replace('/callback_camera_', 'camera.') }}"
+      - service: telegram_bot.send_photo
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          caption: "📷 {{ state_attr(camera_id, 'friendly_name') or camera_id }}"
+          file: "/api/camera_proxy/{{ camera_id }}"
+          inline_keyboard:
+            - "🔄 Obnovit:/callback_camera_{{ camera_id.replace('camera.','') }}, 📷 Kamery:/callback_cameras"
+            - "🏠 Menu:/callback_menu"
+
+  # COVERS (ŽALUZIE/ROLETY)
+  - alias: Telegram covers prehled
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_covers
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>🪟 Přehled žaluzií a rolet</b>
+
+            {% set covers = states.cover | list %}
+            {% if covers | count > 0 %}
+            {% for cover in covers %}
+            {% if cover.state != 'unavailable' %}
+            <b>{{ cover.name }}</b>
+            • Stav: {% if cover.state == 'open' %}🔓 Otevřeno{% elif cover.state == 'closed' %}🔒 Zavřeno{% elif cover.state == 'opening' %}⬆️ Otevírá se{% elif cover.state == 'closing' %}⬇️ Zavírá se{% else %}{{ cover.state }}{% endif %}
+            {% if cover.attributes.current_position is defined %}• Pozice: {{ cover.attributes.current_position }}%{% endif %}
+            {% if cover.attributes.current_tilt_position is defined %}• Náklon: {{ cover.attributes.current_tilt_position }}%{% endif %}
+
+            {% endif %}
+            {% endfor %}
+
+            <b>📊 Souhrn:</b>
+            • Otevřené: {{ covers | selectattr('state','eq','open') | list | count }}
+            • Zavřené: {{ covers | selectattr('state','eq','closed') | list | count }}
+            {% else %}
+            <i>❌ Žádné žaluzie/rolety nenalezeny</i>
+            {% endif %}
+          inline_keyboard: >
+            {% set covers = states.cover | list %}
+            {% set buttons = [] %}
+            {% for cover in covers %}
+              {% set btn = "🪟 " ~ cover.name ~ ":/callback_cover_ctrl_" ~ cover.entity_id.replace('cover.','') %}
+              {% set buttons = buttons + [btn] %}
+            {% endfor %}
+            {% if buttons|count > 0 %}
+              {% for i in range(0, buttons|count, 2) %}
+                {% if i+1 < buttons|count %}
+                  - "{{ buttons[i] }}, {{ buttons[i+1] }}"
+                {% else %}
+                  - "{{ buttons[i] }}"
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+            - "🔄 Refresh:/callback_covers, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram cover control menu
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.command.startswith('/callback_cover_ctrl_') }}"
+    action:
+      - variables:
+          cover_id: "{{ trigger.event.data.command.replace('/callback_cover_ctrl_', 'cover.') }}"
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>🪟 Ovládání: {{ state_attr(cover_id, 'friendly_name') or cover_id }}</b>
+
+            • Aktuální stav: {% if states(cover_id) == 'open' %}🔓 Otevřeno{% elif states(cover_id) == 'closed' %}🔒 Zavřeno{% else %}{{ states(cover_id) }}{% endif %}
+            {% if state_attr(cover_id, 'current_position') is not none %}• Pozice: {{ state_attr(cover_id, 'current_position') }}%{% endif %}
+
+            <i>Vyber akci:</i>
+          inline_keyboard:
+            - "⬆️ Otevřít:/cover_open_{{ cover_id.replace('cover.','') }}, ⬇️ Zavřít:/cover_close_{{ cover_id.replace('cover.','') }}"
+            - "⏸️ Stop:/cover_stop_{{ cover_id.replace('cover.','') }}"
+            - "🪟 Zpět:/callback_covers, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram cover open
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.command.startswith('/cover_open_') }}"
+    action:
+      - variables:
+          cover_id: "{{ trigger.event.data.command.replace('/cover_open_', 'cover.') }}"
+      - service: cover.open_cover
+        target:
+          entity_id: "{{ cover_id }}"
+      - service: telegram_bot.answer_callback_query
+        data:
+          callback_query_id: "{{ trigger.event.data.id }}"
+          message: "⬆️ Otevírám {{ state_attr(cover_id, 'friendly_name') }}"
+          show_alert: false
+
+  - alias: Telegram cover close
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.command.startswith('/cover_close_') }}"
+    action:
+      - variables:
+          cover_id: "{{ trigger.event.data.command.replace('/cover_close_', 'cover.') }}"
+      - service: cover.close_cover
+        target:
+          entity_id: "{{ cover_id }}"
+      - service: telegram_bot.answer_callback_query
+        data:
+          callback_query_id: "{{ trigger.event.data.id }}"
+          message: "⬇️ Zavírám {{ state_attr(cover_id, 'friendly_name') }}"
+          show_alert: false
+
+  - alias: Telegram cover stop
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.command.startswith('/cover_stop_') }}"
+    action:
+      - variables:
+          cover_id: "{{ trigger.event.data.command.replace('/cover_stop_', 'cover.') }}"
+      - service: cover.stop_cover
+        target:
+          entity_id: "{{ cover_id }}"
+      - service: telegram_bot.answer_callback_query
+        data:
+          callback_query_id: "{{ trigger.event.data.id }}"
+          message: "⏸️ Zastavuji {{ state_attr(cover_id, 'friendly_name') }}"
+          show_alert: false
+
+  # VENTILÁTORY
+  - alias: Telegram ventilatory prehled
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_fans
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>💨 Přehled ventilátorů</b>
+
+            {% set fans = states.fan | list %}
+            {% if fans | count > 0 %}
+            {% for fan in fans %}
+            {% if fan.state != 'unavailable' %}
+            <b>{{ fan.name }}</b>
+            • Stav: {{ '✅ Zapnuto' if fan.state == 'on' else '⭕ Vypnuto' }}
+            {% if fan.state == 'on' %}
+              {% if fan.attributes.percentage is defined and fan.attributes.percentage is not none %}└ Rychlost: {{ fan.attributes.percentage }}%{% endif %}
+              {% if fan.attributes.preset_mode is defined and fan.attributes.preset_mode is not none %}└ Režim: {{ fan.attributes.preset_mode }}{% endif %}
+              {% if fan.attributes.oscillating is defined %}└ Oscilace: {{ 'Ano' if fan.attributes.oscillating else 'Ne' }}{% endif %}
+            {% endif %}
+
+            {% endif %}
+            {% endfor %}
+
+            <b>📊 Souhrn:</b>
+            • Zapnuté: {{ fans | selectattr('state','eq','on') | list | count }}
+            • Vypnuté: {{ fans | selectattr('state','eq','off') | list | count }}
+            {% else %}
+            <i>❌ Žádné ventilátory nenalezeny</i>
+            {% endif %}
+          inline_keyboard: >
+            {% set fans = states.fan | list %}
+            {% set buttons = [] %}
+            {% for fan in fans %}
+              {% set btn = "💨 " ~ fan.name ~ ":/callback_fan_ctrl_" ~ fan.entity_id.replace('fan.','') %}
+              {% set buttons = buttons + [btn] %}
+            {% endfor %}
+            {% if buttons|count > 0 %}
+              {% for i in range(0, buttons|count, 2) %}
+                {% if i+1 < buttons|count %}
+                  - "{{ buttons[i] }}, {{ buttons[i+1] }}"
+                {% else %}
+                  - "{{ buttons[i] }}"
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+            - "🔄 Refresh:/callback_fans, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram fan control menu
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.command.startswith('/callback_fan_ctrl_') }}"
+    action:
+      - variables:
+          fan_id: "{{ trigger.event.data.command.replace('/callback_fan_ctrl_', 'fan.') }}"
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>💨 Ovládání: {{ state_attr(fan_id, 'friendly_name') or fan_id }}</b>
+
+            • Stav: {{ '✅ Zapnuto' if states(fan_id) == 'on' else '⭕ Vypnuto' }}
+            {% if state_attr(fan_id, 'percentage') is not none %}• Rychlost: {{ state_attr(fan_id, 'percentage') }}%{% endif %}
+            {% if state_attr(fan_id, 'preset_mode') is not none %}• Režim: {{ state_attr(fan_id, 'preset_mode') }}{% endif %}
+
+            <i>Vyber akci:</i>
+          inline_keyboard:
+            - "✅ Zapnout:/fan_on_{{ fan_id.replace('fan.','') }}, ⭕ Vypnout:/fan_off_{{ fan_id.replace('fan.','') }}"
+            - "🔽 Nízká:/fan_speed_33_{{ fan_id.replace('fan.','') }}, ➖ Střední:/fan_speed_66_{{ fan_id.replace('fan.','') }}"
+            - "🔼 Vysoká:/fan_speed_100_{{ fan_id.replace('fan.','') }}"
+            - "💨 Zpět:/callback_fans, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram fan turn on
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.command.startswith('/fan_on_') }}"
+    action:
+      - variables:
+          fan_id: "{{ trigger.event.data.command.replace('/fan_on_', 'fan.') }}"
+      - service: fan.turn_on
+        target:
+          entity_id: "{{ fan_id }}"
+      - service: telegram_bot.answer_callback_query
+        data:
+          callback_query_id: "{{ trigger.event.data.id }}"
+          message: "✅ Zapínám {{ state_attr(fan_id, 'friendly_name') }}"
+          show_alert: false
+
+  - alias: Telegram fan turn off
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.command.startswith('/fan_off_') }}"
+    action:
+      - variables:
+          fan_id: "{{ trigger.event.data.command.replace('/fan_off_', 'fan.') }}"
+      - service: fan.turn_off
+        target:
+          entity_id: "{{ fan_id }}"
+      - service: telegram_bot.answer_callback_query
+        data:
+          callback_query_id: "{{ trigger.event.data.id }}"
+          message: "⭕ Vypínám {{ state_attr(fan_id, 'friendly_name') }}"
+          show_alert: false
+
+  - alias: Telegram fan set speed
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.command.startswith('/fan_speed_') }}"
+    action:
+      - variables:
+          command_parts: "{{ trigger.event.data.command.split('_') }}"
+          speed: "{{ command_parts[2] | int }}"
+          fan_id: "{{ trigger.event.data.command.split('_')[3:] | join('_') }}"
+          full_fan_id: "fan.{{ fan_id }}"
+      - service: fan.set_percentage
+        target:
+          entity_id: "{{ full_fan_id }}"
+        data:
+          percentage: "{{ speed }}"
+      - service: telegram_bot.answer_callback_query
+        data:
+          callback_query_id: "{{ trigger.event.data.id }}"
+          message: "💨 Nastavuji rychlost {{ speed }}% pro {{ state_attr(full_fan_id, 'friendly_name') }}"
+          show_alert: false
+
+  # ZVLHČOVAČE
+  - alias: Telegram zvlhcovace prehled
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_humidifiers
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>🌡️ Přehled zvlhčovačů</b>
+
+            {% set humidifiers = states.humidifier | list %}
+            {% if humidifiers | count > 0 %}
+            {% for hum in humidifiers %}
+            {% if hum.state != 'unavailable' %}
+            <b>{{ hum.name }}</b>
+            • Stav: {{ '✅ Zapnuto' if hum.state == 'on' else '⭕ Vypnuto' }}
+            {% if hum.state == 'on' %}
+              {% if hum.attributes.current_humidity is defined and hum.attributes.current_humidity is not none %}└ Aktuální: {{ hum.attributes.current_humidity }}%{% endif %}
+              {% if hum.attributes.humidity is defined and hum.attributes.humidity is not none %}└ Cílová: {{ hum.attributes.humidity }}%{% endif %}
+              {% if hum.attributes.mode is defined and hum.attributes.mode is not none %}└ Režim: {{ hum.attributes.mode }}{% endif %}
+            {% endif %}
+
+            {% endif %}
+            {% endfor %}
+
+            <b>📊 Souhrn:</b>
+            • Zapnuté: {{ humidifiers | selectattr('state','eq','on') | list | count }}
+            • Vypnuté: {{ humidifiers | selectattr('state','eq','off') | list | count }}
+            {% else %}
+            <i>❌ Žádné zvlhčovače nenalezeny</i>
+            {% endif %}
+          inline_keyboard: >
+            {% set humidifiers = states.humidifier | list %}
+            {% set buttons = [] %}
+            {% for hum in humidifiers %}
+              {% set btn = "🌡️ " ~ hum.name ~ ":/callback_hum_ctrl_" ~ hum.entity_id.replace('humidifier.','') %}
+              {% set buttons = buttons + [btn] %}
+            {% endfor %}
+            {% if buttons|count > 0 %}
+              {% for i in range(0, buttons|count, 2) %}
+                {% if i+1 < buttons|count %}
+                  - "{{ buttons[i] }}, {{ buttons[i+1] }}"
+                {% else %}
+                  - "{{ buttons[i] }}"
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+            - "🔄 Refresh:/callback_humidifiers, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram humidifier control menu
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.command.startswith('/callback_hum_ctrl_') }}"
+    action:
+      - variables:
+          hum_id: "{{ trigger.event.data.command.replace('/callback_hum_ctrl_', 'humidifier.') }}"
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>🌡️ Ovládání: {{ state_attr(hum_id, 'friendly_name') or hum_id }}</b>
+
+            • Stav: {{ '✅ Zapnuto' if states(hum_id) == 'on' else '⭕ Vypnuto' }}
+            {% if state_attr(hum_id, 'current_humidity') is not none %}• Aktuální vlhkost: {{ state_attr(hum_id, 'current_humidity') }}%{% endif %}
+            {% if state_attr(hum_id, 'humidity') is not none %}• Cílová vlhkost: {{ state_attr(hum_id, 'humidity') }}%{% endif %}
+            {% if state_attr(hum_id, 'mode') is not none %}• Režim: {{ state_attr(hum_id, 'mode') }}{% endif %}
+
+            <i>Vyber akci:</i>
+          inline_keyboard:
+            - "✅ Zapnout:/hum_on_{{ hum_id.replace('humidifier.','') }}, ⭕ Vypnout:/hum_off_{{ hum_id.replace('humidifier.','') }}"
+            - "💧 40%:/hum_set_40_{{ hum_id.replace('humidifier.','') }}, 💧 50%:/hum_set_50_{{ hum_id.replace('humidifier.','') }}"
+            - "💧 60%:/hum_set_60_{{ hum_id.replace('humidifier.','') }}, 💧 70%:/hum_set_70_{{ hum_id.replace('humidifier.','') }}"
+            - "🌡️ Zpět:/callback_humidifiers, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram humidifier turn on
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.command.startswith('/hum_on_') }}"
+    action:
+      - variables:
+          hum_id: "{{ trigger.event.data.command.replace('/hum_on_', 'humidifier.') }}"
+      - service: humidifier.turn_on
+        target:
+          entity_id: "{{ hum_id }}"
+      - service: telegram_bot.answer_callback_query
+        data:
+          callback_query_id: "{{ trigger.event.data.id }}"
+          message: "✅ Zapínám {{ state_attr(hum_id, 'friendly_name') }}"
+          show_alert: false
+
+  - alias: Telegram humidifier turn off
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.command.startswith('/hum_off_') }}"
+    action:
+      - variables:
+          hum_id: "{{ trigger.event.data.command.replace('/hum_off_', 'humidifier.') }}"
+      - service: humidifier.turn_off
+        target:
+          entity_id: "{{ hum_id }}"
+      - service: telegram_bot.answer_callback_query
+        data:
+          callback_query_id: "{{ trigger.event.data.id }}"
+          message: "⭕ Vypínám {{ state_attr(hum_id, 'friendly_name') }}"
+          show_alert: false
+
+  - alias: Telegram humidifier set humidity
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+    condition:
+      - condition: template
+        value_template: "{{ trigger.event.data.command.startswith('/hum_set_') }}"
+    action:
+      - variables:
+          command_parts: "{{ trigger.event.data.command.split('_') }}"
+          humidity: "{{ command_parts[2] | int }}"
+          hum_id: "{{ trigger.event.data.command.split('_')[3:] | join('_') }}"
+          full_hum_id: "humidifier.{{ hum_id }}"
+      - service: humidifier.set_humidity
+        target:
+          entity_id: "{{ full_hum_id }}"
+        data:
+          humidity: "{{ humidity }}"
+      - service: telegram_bot.answer_callback_query
+        data:
+          callback_query_id: "{{ trigger.event.data.id }}"
+          message: "💧 Nastavuji vlhkost {{ humidity }}% pro {{ state_attr(full_hum_id, 'friendly_name') }}"
+          show_alert: false
