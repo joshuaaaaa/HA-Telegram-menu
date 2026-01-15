@@ -1,0 +1,1000 @@
+# packages/telegram_menu.yaml
+
+automation:
+  # HLAVNÍ MENU - COMMAND
+  - alias: "Telegram: Hlavní menu tlačidiel"
+    trigger:
+      - platform: event
+        event_type: telegram_command
+        event_data:
+          command: /menu
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          message: "🏠 Hlavní menu Home Assistant"
+          inline_keyboard:
+            - "📡 Síť:/callback_siet, 📊 Stav:/status"
+            - "⚡ Elektrika:/callback_elektrika, 🌤 Počasí:/thp"
+            - "💡 Světla:/callback_lights, 🔥 Topení:/callback_heating"
+            - "🔒 Zabezpečení:/callback_security, 🔌 Switche:/callback_switches"
+            - "🔋 Baterie:/callback_batteries, 📱 Systém:/callback_system"
+            - "🎵 Média:/callback_media, ⚠️ Upozornění:/callback_alerts"
+            - "🎬 Scény:/callback_scenes, 🤖 Automatizace:/callback_automations"
+            - "🆕 Updaty:/callback_updates, 📈 Statistiky:/callback_stats"
+            - "👥 Osoby:/callback_persons, 📅 Kalendář:/callback_calendar"
+            - "🌅 Slunce:/callback_sun, 🗒️ Notifikace:/callback_notifications"
+
+  # HLAVNÍ MENU - CALLBACK
+  - alias: "Telegram: Menu callback"
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_menu
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          message: "🏠 Hlavní menu Home Assistant"
+          inline_keyboard:
+            - "📡 Síť:/callback_siet, 📊 Stav:/status"
+            - "⚡ Elektrika:/callback_elektrika, 🌤 Počasí:/thp"
+            - "💡 Světla:/callback_lights, 🔥 Topení:/callback_heating"
+            - "🔒 Zabezpečení:/callback_security, 🔌 Switche:/callback_switches"
+            - "🔋 Baterie:/callback_batteries, 📱 Systém:/callback_system"
+            - "🎵 Média:/callback_media, ⚠️ Upozornění:/callback_alerts"
+            - "🎬 Scény:/callback_scenes, 🤖 Automatizace:/callback_automations"
+            - "🆕 Updaty:/callback_updates, 📈 Statistiky:/callback_stats"
+            - "👥 Osoby:/callback_persons, 📅 Kalendář:/callback_calendar"
+            - "🌅 Slunce:/callback_sun, 🗒️ Notifikace:/callback_notifications"
+
+  - alias: Telegram switches seznam
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_switches
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>🔌 Přehled switchů:</b>
+            
+            {% set on = states.switch | selectattr('state','eq','on') | list %}
+            {% set off = states.switch | selectattr('state','eq','off') | list %}
+            
+            <b>✅ Zapnuté ({{ on|count }}):</b>
+            {% if on | count == 0 %}
+            Žádný
+            {% else %}
+            {% for s in on %}
+            • {{ s.name }}
+              └ Zapnuto: {{ relative_time(s.last_changed) }}
+              {% if s.attributes.current_power_w %}└ Spotřeba: {{ s.attributes.current_power_w }}W{% endif %}
+            {% endfor %}
+            {% endif %}
+            
+            <b>⭕ Vypnuté ({{ off|count }}):</b>
+            {% if off|count > 5 %}
+            ({{ off|count }} zařízení)
+            {% else %}
+            {% for s in off %}
+            • {{ s.name }}
+            {% endfor %}
+            {% endif %}
+          inline_keyboard:
+            - "🔄 Refresh:/callback_switches, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram home status
+    trigger:
+      - platform: event
+        event_type: telegram_command
+        event_data:
+          command: /status
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>🏠 Status domácnosti</b>
+            
+            🌡 <b>Teploty:</b>
+            {% for sensor in states.sensor | selectattr('attributes.device_class','eq','temperature') | list %}
+            • {{ sensor.name }}: {{ sensor.state }}°C
+            {% endfor %}
+            
+            ⚡ <b>Energie:</b>
+            • Spotřeba: {{ states('sensor.electricity_power')|float(0)|round(0) }} W
+            • Dnes: {{ states('sensor.electricity_daily')|float(0)|round(2) }} kWh
+            
+            🔌 <b>Zařízení:</b>
+            • Zapnuté: {{ states.switch|selectattr('state','eq','on')|list|count }}
+            • Světla: {{ states.light|selectattr('state','eq','on')|list|count }}
+            
+            👥 <b>Osoby:</b>
+            {% for person in states.person %}
+            • {{ person.name }}: {{ person.state }}
+            {% endfor %}
+
+  - alias: Telegram THP přehled
+    trigger:
+      - platform: event
+        event_type: telegram_command
+        event_data:
+          command: /thp
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>🌡 Teplota / Vlhkost / Tlak</b>
+            
+            {% for sensor in states.sensor 
+               | selectattr('attributes.device_class','defined') 
+               | list %}
+            {% if sensor.attributes.device_class in ['temperature','humidity','pressure'] %}
+            {{ sensor.attributes.device_class[0]|upper }}| {{ sensor.name }}: {{ sensor.state }} {{ sensor.attributes.unit_of_measurement }}
+            {% endif %}
+            {% endfor %}
+
+  - alias: Telegram síť přehled
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_siet
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>📡 Síť a připojení</b>
+            
+            {% set devices = states.device_tracker | selectattr('state','eq','home') | list %}
+            {% if devices | count > 0 %}
+            <b>🏠 Doma ({{ devices|count }}):</b>
+            {% for device in devices %}
+            • {{ device.name }}
+              {% if device.attributes.ip is defined %}└ IP: {{ device.attributes.ip }}{% endif %}
+            {% endfor %}
+            {% else %}
+            <b>🏠 Žádná zařízení doma</b>
+            {% endif %}
+            
+            {% set speedtest = states.sensor | selectattr('entity_id', 'search', 'speedtest') | list %}
+            {% if speedtest | count > 0 %}
+            <b>🌐 Rychlost internetu:</b>
+            {% for s in speedtest %}
+            {% if 'download' in s.entity_id and s.state != 'unknown' %}
+            • Download: {{ s.state|float(0)|round(1) }} {{ s.attributes.unit_of_measurement }}
+            {% elif 'upload' in s.entity_id and s.state != 'unknown' %}
+            • Upload: {{ s.state|float(0)|round(1) }} {{ s.attributes.unit_of_measurement }}
+            {% elif 'ping' in s.entity_id and s.state != 'unknown' %}
+            • Ping: {{ s.state|float(0)|round(0) }} {{ s.attributes.unit_of_measurement }}
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+          inline_keyboard:
+            - "🔄 Refresh:/callback_siet, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram elektrika detail
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_elektrika
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>⚡ Spotřeba elektřiny</b>
+            
+            {% set power_sensors = states.sensor | selectattr('attributes.device_class','eq','power') | list %}
+            {% set energy_sensors = states.sensor | selectattr('attributes.device_class','eq','energy') | list %}
+            {% set voltage_sensors = states.sensor | selectattr('attributes.device_class','eq','voltage') | list %}
+            {% set current_sensors = states.sensor | selectattr('attributes.device_class','eq','current') | list %}
+            
+            {% if power_sensors | count > 0 %}
+            <b>📊 Aktuální výkon:</b>
+            {% for s in power_sensors %}
+            {% if s.state != 'unknown' and s.state != 'unavailable' %}
+            • {{ s.name }}: {{ s.state|float(0)|round(0) }} W
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+            
+            {% if voltage_sensors | count > 0 %}
+            {% for s in voltage_sensors %}
+            {% if s.state != 'unknown' and s.state != 'unavailable' %}
+            • Napětí: {{ s.state|float(0)|round(0) }} V
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+            
+            {% if current_sensors | count > 0 %}
+            {% for s in current_sensors %}
+            {% if s.state != 'unknown' and s.state != 'unavailable' %}
+            • Proud: {{ s.state|float(0)|round(2) }} A
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+            
+            {% if energy_sensors | count > 0 %}
+            <b>📅 Spotřeba energie:</b>
+            {% for s in energy_sensors | sort(attribute='entity_id') %}
+            {% if s.state != 'unknown' and s.state != 'unavailable' %}
+            • {{ s.name }}: {{ s.state|float(0)|round(2) }} {{ s.attributes.unit_of_measurement }}
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+            
+            {% set top_consumers = states.switch | selectattr('state','eq','on') | selectattr('attributes.current_power_w','defined') | sort(attribute='attributes.current_power_w', reverse=true) | list %}
+            {% if top_consumers | count > 0 %}
+            <b>🔌 Top spotřebiče:</b>
+            {% for switch in top_consumers[:5] %}
+            • {{ switch.name }}: {{ switch.attributes.current_power_w }}W
+            {% endfor %}
+            {% endif %}
+          inline_keyboard:
+            - "🔄 Refresh:/callback_elektrika, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram svetla prehled
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_lights
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>💡 Přehled světel</b>
+            
+            {% set on = states.light | selectattr('state','eq','on') | list %}
+            {% set off = states.light | selectattr('state','eq','off') | list %}
+            
+            {% if (on|count + off|count) == 0 %}
+            <i>Žádná světla nenalezena</i>
+            {% else %}
+            <b>✅ Zapnuté ({{ on|count }}):</b>
+            {% if on | count == 0 %}
+            Žádné
+            {% else %}
+            {% for light in on %}
+            • {{ light.name }}
+              {% if light.attributes.brightness is defined %}└ Jas: {{ ((light.attributes.brightness / 255) * 100)|round(0) }}%{% endif %}
+              {% if light.attributes.color_temp is defined %}└ Teplota: {{ light.attributes.color_temp }}K{% endif %}
+            {% endfor %}
+            {% endif %}
+            
+            <b>⭕ Vypnuté ({{ off|count }}):</b>
+            {% if off|count > 5 %}
+            ({{ off|count }} světel)
+            {% else %}
+            {% for light in off %}
+            • {{ light.name }}
+            {% endfor %}
+            {% endif %}
+            {% endif %}
+          inline_keyboard:
+            - "🔄 Refresh:/callback_lights, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram topeni prehled
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_heating
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>🔥 Topení a teploty</b>
+            
+            {% set temp_sensors = states.sensor | selectattr('attributes.device_class','eq','temperature') | list %}
+            {% if temp_sensors | count > 0 %}
+            <b>🌡 Teploty místností:</b>
+            {% for sensor in temp_sensors %}
+            {% if sensor.state != 'unknown' and sensor.state != 'unavailable' %}
+            • {{ sensor.name }}: {{ sensor.state }}°C
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+            
+            {% set climates = states.climate | list %}
+            {% if climates | count > 0 %}
+            <b>🔥 Termostaty:</b>
+            {% for climate in climates %}
+            {% if climate.state != 'unavailable' %}
+            • {{ climate.name }}
+              └ Režim: {{ climate.state }}
+              {% if climate.attributes.temperature is defined %}└ Cílová: {{ climate.attributes.temperature }}°C{% endif %}
+              {% if climate.attributes.current_temperature is defined %}└ Aktuální: {{ climate.attributes.current_temperature }}°C{% endif %}
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+            
+            {% set heat_pump_sensors = states.sensor | selectattr('entity_id', 'search', 'heat_pump|cop|cerpadlo') | list %}
+            {% if heat_pump_sensors | count > 0 %}
+            <b>🔄 Tepelné čerpadlo:</b>
+            {% for s in heat_pump_sensors %}
+            {% if s.state != 'unknown' and s.state != 'unavailable' %}
+            • {{ s.name }}: {{ s.state }} {{ s.attributes.unit_of_measurement|default('') }}
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+          inline_keyboard:
+            - "🔄 Refresh:/callback_heating, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram zabezpeceni
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_security
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>🔒 Zabezpečení</b>
+            
+            {% set doors = states.binary_sensor | selectattr('attributes.device_class','eq','door') | list %}
+            {% set windows = states.binary_sensor | selectattr('attributes.device_class','eq','window') | list %}
+            {% if (doors|count + windows|count) > 0 %}
+            <b>🚪 Dveře a okna:</b>
+            {% for sensor in doors + windows %}
+            {% if sensor.state != 'unavailable' %}
+            • {{ sensor.name }}: {{ '🔓 Otevřeno' if sensor.state == 'on' else '🔒 Zavřeno' }}
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+            
+            {% set smoke = states.binary_sensor | selectattr('attributes.device_class','eq','smoke') | list %}
+            {% set motion = states.binary_sensor | selectattr('attributes.device_class','eq','motion') | list %}
+            {% if (smoke|count + motion|count) > 0 %}
+            <b>🔍 Detektory:</b>
+            {% for sensor in smoke %}
+            {% if sensor.state != 'unavailable' %}
+            • {{ sensor.name }}: {{ '⚠️ ALARM' if sensor.state == 'on' else '✅ OK' }}
+            {% endif %}
+            {% endfor %}
+            {% for sensor in motion %}
+            {% if sensor.state != 'unavailable' %}
+            • {{ sensor.name }}: {{ '👤 Pohyb' if sensor.state == 'on' else '✅ Klid' }}
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+            
+            {% set alarms = states.alarm_control_panel | list %}
+            {% if alarms | count > 0 %}
+            <b>🛡 Alarmy:</b>
+            {% for alarm in alarms %}
+            {% if alarm.state != 'unavailable' %}
+            • {{ alarm.name }}: {{ alarm.state }}
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+            
+            {% if (doors|count + windows|count + smoke|count + motion|count + alarms|count) == 0 %}
+            <i>Žádná zabezpečovací zařízení nenalezena</i>
+            {% endif %}
+          inline_keyboard:
+            - "🔄 Refresh:/callback_security, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram baterie prehled
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_batteries
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>🔋 Stav baterií</b>
+            
+            {% set battery_sensors = states.sensor | selectattr('attributes.device_class','eq','battery') | list %}
+            {% if battery_sensors | count > 0 %}
+            {% set low = battery_sensors | selectattr('state','lt','20') | selectattr('state','ne','unknown') | selectattr('state','ne','unavailable') | list %}
+            {% set medium = battery_sensors | selectattr('state','ge','20') | selectattr('state','lt','50') | selectattr('state','ne','unknown') | selectattr('state','ne','unavailable') | list %}
+            {% set good = battery_sensors | selectattr('state','ge','50') | selectattr('state','ne','unknown') | selectattr('state','ne','unavailable') | list %}
+            
+            {% if low | count > 0 %}
+            <b>🔴 Kritické (&lt;20%):</b>
+            {% for s in low | sort(attribute='state') %}
+            • {{ s.name }}: {{ s.state }}%
+            {% endfor %}
+            {% endif %}
+            
+            {% if medium | count > 0 %}
+            <b>🟡 Střední (20-50%):</b>
+            {% for s in medium | sort(attribute='state') %}
+            • {{ s.name }}: {{ s.state }}%
+            {% endfor %}
+            {% endif %}
+            
+            {% if good | count > 0 %}
+            <b>🟢 Dobrý stav (&gt;50%):</b>
+            {% if good | count > 10 %}
+            ({{ good|count }} zařízení v pořádku)
+            {% else %}
+            {% for s in good | sort(attribute='state') %}
+            • {{ s.name }}: {{ s.state }}%
+            {% endfor %}
+            {% endif %}
+            {% endif %}
+            {% else %}
+            <i>Žádné bateriové senzory nenalezeny</i>
+            {% endif %}
+          inline_keyboard:
+            - "🔄 Refresh:/callback_batteries, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram system info
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_system
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>📱 Systémové informace</b>
+            
+            <b>🏠 Home Assistant:</b>
+            • Verze: {{ states('sensor.current_version') if states('sensor.current_version') != 'unknown' else 'N/A' }}
+            {% set uptime = states.sensor | selectattr('entity_id', 'search', 'uptime') | list %}
+            {% if uptime | count > 0 %}
+            {% for s in uptime %}
+            {% if s.state != 'unknown' and s.state != 'unavailable' %}
+            • Uptime: {{ s.state }}
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+            
+            {% set cpu = states.sensor | selectattr('entity_id', 'search', 'processor_use|cpu') | list %}
+            {% set memory = states.sensor | selectattr('entity_id', 'search', 'memory_use|ram') | list %}
+            {% set disk = states.sensor | selectattr('entity_id', 'search', 'disk_use') | list %}
+            
+            {% if cpu | count > 0 or memory | count > 0 or disk | count > 0 %}
+            <b>⚙️ Systémové prostředky:</b>
+            {% for s in cpu %}
+            {% if s.state != 'unknown' and s.state != 'unavailable' %}
+            • CPU: {{ s.state }}%
+            {% endif %}
+            {% endfor %}
+            {% for s in memory %}
+            {% if s.state != 'unknown' and s.state != 'unavailable' %}
+            • RAM: {{ s.state }}%
+            {% endif %}
+            {% endfor %}
+            {% for s in disk %}
+            {% if s.state != 'unknown' and s.state != 'unavailable' %}
+            • Disk: {{ s.state }}%
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+            
+            <b>📊 Entity:</b>
+            • Celkem: {{ states | count }}
+            • Sensors: {{ states.sensor | count }}
+            • Switches: {{ states.switch | count }}
+            • Lights: {{ states.light | count }}
+            • Binary sensors: {{ states.binary_sensor | count }}
+          inline_keyboard:
+            - "🔄 Refresh:/callback_system, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram media prehled
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_media
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>🎵 Média</b>
+            
+            {% set media = states.media_player | selectattr('state','ne','off') | selectattr('state','ne','unavailable') | list %}
+            {% if media | count > 0 %}
+            {% for player in media %}
+            <b>{{ player.name }}</b>
+            • Stav: {{ player.state }}
+            {% if player.attributes.media_title is defined %}
+            • Přehrává: {{ player.attributes.media_title }}
+            {% endif %}
+            {% if player.attributes.media_artist is defined %}
+            • Umělec: {{ player.attributes.media_artist }}
+            {% endif %}
+            {% if player.attributes.volume_level is defined %}
+            • Hlasitost: {{ (player.attributes.volume_level * 100)|round(0) }}%
+            {% endif %}
+            {% if player.attributes.source is defined %}
+            • Zdroj: {{ player.attributes.source }}
+            {% endif %}
+            
+            {% endfor %}
+            {% else %}
+            <i>Žádné aktivní přehrávače</i>
+            {% endif %}
+            
+            {% set vacuums = states.vacuum | list %}
+            {% if vacuums | count > 0 %}
+            <b>🤖 Vysavače:</b>
+            {% for vac in vacuums %}
+            {% if vac.state != 'unavailable' %}
+            • {{ vac.name }}: {{ vac.state }}
+            {% if vac.attributes.battery_level is defined %}  └ Baterie: {{ vac.attributes.battery_level }}%{% endif %}
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+          inline_keyboard:
+            - "🔄 Refresh:/callback_media, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram upozorneni
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_alerts
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>⚠️ Upozornění a varování</b>
+            
+            {% set issues = namespace(count=0) %}
+            
+            {% set low_battery = states.sensor | selectattr('attributes.device_class','eq','battery') | selectattr('state','lt','20') | selectattr('state','ne','unknown') | selectattr('state','ne','unavailable') | list %}
+            {% if low_battery | count > 0 %}
+            {% set issues.count = issues.count + low_battery|count %}
+            <b>🔋 Slabé baterie ({{ low_battery|count }}):</b>
+            {% for s in low_battery %}
+            • {{ s.name }}: {{ s.state }}%
+            {% endfor %}
+            {% endif %}
+            
+            {% set open_doors = states.binary_sensor | selectattr('attributes.device_class','eq','door') | selectattr('state','eq','on') | list %}
+            {% set open_windows = states.binary_sensor | selectattr('attributes.device_class','eq','window') | selectattr('state','eq','on') | list %}
+            {% if (open_doors|count + open_windows|count) > 0 %}
+            {% set issues.count = issues.count + (open_doors|count + open_windows|count) %}
+            <b>🔓 Otevřeno ({{ open_doors|count + open_windows|count }}):</b>
+            {% for s in open_doors + open_windows %}
+            • {{ s.name }}
+            {% endfor %}
+            {% endif %}
+            
+            {% set lights_on = states.light | selectattr('state','eq','on') | list %}
+            {% if lights_on | count > 0 %}
+            <b>💡 Zapnutá světla ({{ lights_on|count }}):</b>
+            {% for light in lights_on %}
+            • {{ light.name }}
+              └ {{ relative_time(light.last_changed) }}
+            {% endfor %}
+            {% endif %}
+            
+            {% set switches_on = states.switch | selectattr('state','eq','on') | list %}
+            {% if switches_on | count > 0 %}
+            <b>🔌 Zapnuté switche ({{ switches_on|count }}):</b>
+            {% for s in switches_on %}
+            • {{ s.name }}
+              └ {{ relative_time(s.last_changed) }}
+            {% endfor %}
+            {% endif %}
+            
+            {% set unavailable = states | selectattr('state','eq','unavailable') | list %}
+            {% if unavailable | count > 0 %}
+            {% set issues.count = issues.count + unavailable|count %}
+            <b>⚠️ Nedostupné entity ({{ unavailable|count }}):</b>
+            {% if unavailable | count > 10 %}
+            ({{ unavailable|count }} entit je offline)
+            {% else %}
+            {% for s in unavailable %}
+            • {{ s.name }}
+            {% endfor %}
+            {% endif %}
+            {% endif %}
+            
+            {% if issues.count == 0 %}
+            <b>✅ Vše v pořádku!</b>
+            Žádná kritická upozornění.
+            {% endif %}
+          inline_keyboard:
+            - "🔄 Refresh:/callback_alerts, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram sceny seznam
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_scenes
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>🎬 Dostupné scény</b>
+            
+            {% set scenes = states.scene | list %}
+            {% if scenes | count > 0 %}
+            {% for scene in scenes %}
+            • {{ scene.name }}
+              └ ID: {{ scene.entity_id }}
+            {% endfor %}
+            
+            <i>Pro spuštění scény použij: /scene_ID</i>
+            {% else %}
+            <i>Žádné scény nenalezeny</i>
+            {% endif %}
+          inline_keyboard:
+            - "🔄 Refresh:/callback_scenes, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram automatizace seznam
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_automations
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>🤖 Automatizace</b>
+            
+            {% set autos = states.automation | list %}
+            {% if autos | count > 0 %}
+            {% set on = autos | selectattr('state','eq','on') | list %}
+            {% set off = autos | selectattr('state','eq','off') | list %}
+            
+            <b>✅ Aktivní ({{ on|count }}):</b>
+            {% if on|count > 15 %}
+            ({{ on|count }} automatizací aktivních)
+            {% else %}
+            {% for auto in on %}
+            • {{ auto.name }}
+            {% endfor %}
+            {% endif %}
+            
+            {% if off|count > 0 %}
+            <b>⭕ Vypnuté ({{ off|count }}):</b>
+            {% for auto in off %}
+            • {{ auto.name }}
+            {% endfor %}
+            {% endif %}
+            {% else %}
+            <i>Žádné automatizace nenalezeny</i>
+            {% endif %}
+          inline_keyboard:
+            - "🔄 Refresh:/callback_automations, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram updaty
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_updates
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>🆕 Dostupné aktualizace</b>
+            
+            {% set updates = states.update | selectattr('state','eq','on') | list %}
+            {% if updates | count > 0 %}
+            <b>📦 K dispozici ({{ updates|count }}):</b>
+            {% for upd in updates %}
+            • {{ upd.name }}
+            {% if upd.attributes.installed_version is defined and upd.attributes.latest_version is defined %}
+              └ {{ upd.attributes.installed_version }} → {{ upd.attributes.latest_version }}
+            {% endif %}
+            {% if upd.attributes.release_summary is defined %}
+              └ {{ upd.attributes.release_summary[:100] }}
+            {% endif %}
+            {% endfor %}
+            {% else %}
+            <b>✅ Vše aktuální!</b>
+            Žádné updaty k dispozici.
+            {% endif %}
+          inline_keyboard:
+            - "🔄 Refresh:/callback_updates, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram statistiky
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_stats
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>📈 Statistiky a souhrny</b>
+            
+            {% set energy_daily = states.sensor | selectattr('entity_id', 'search', 'daily|today') | selectattr('attributes.device_class','eq','energy') | list %}
+            {% if energy_daily | count > 0 %}
+            <b>⚡ Spotřeba dnes:</b>
+            {% for s in energy_daily %}
+            {% if s.state != 'unknown' and s.state != 'unavailable' %}
+            • {{ s.name }}: {{ s.state|float(0)|round(2) }} kWh
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+            
+            {% set energy_monthly = states.sensor | selectattr('entity_id', 'search', 'monthly|month') | selectattr('attributes.device_class','eq','energy') | list %}
+            {% if energy_monthly | count > 0 %}
+            <b>⚡ Spotřeba tento měsíc:</b>
+            {% for s in energy_monthly %}
+            {% if s.state != 'unknown' and s.state != 'unavailable' %}
+            • {{ s.name }}: {{ s.state|float(0)|round(1) }} kWh
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+            
+            {% set temps = states.sensor | selectattr('attributes.device_class','eq','temperature') | selectattr('state','ne','unknown') | selectattr('state','ne','unavailable') | map(attribute='state') | map('float') | list %}
+            {% if temps | count > 0 %}
+            <b>🌡 Průměrná teplota:</b>
+            • {{ (temps|sum / temps|count)|round(1) }}°C
+            • Min: {{ temps|min|round(1) }}°C
+            • Max: {{ temps|max|round(1) }}°C
+            {% endif %}
+            
+            <b>📊 Aktivita dnes:</b>
+            • Světla zapnuta: {{ states.light|selectattr('state','eq','on')|list|count }}x
+            • Switche aktivní: {{ states.switch|selectattr('state','eq','on')|list|count }}x
+            • Spuštěné auto.: {{ states.automation|selectattr('state','eq','on')|list|count }}/{{ states.automation|list|count }}
+          inline_keyboard:
+            - "🔄 Refresh:/callback_stats, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram osoby detail
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_persons
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>👥 Kde jsou lidé</b>
+            
+            {% set persons = states.person | list %}
+            {% if persons | count > 0 %}
+            {% for person in persons %}
+            <b>{{ person.name }}</b>
+            • Lokace: {{ person.state }}
+            • Změna: {{ relative_time(person.last_changed) }}
+            {% if person.attributes.latitude is defined and person.attributes.longitude is defined %}
+            • GPS: {{ person.attributes.latitude|round(4) }}, {{ person.attributes.longitude|round(4) }}
+            {% endif %}
+            {% if person.attributes.source is defined %}
+            • Zdroj: {{ person.attributes.source }}
+            {% endif %}
+            
+            {% endfor %}
+            
+            {% set home = persons | selectattr('state','eq','home') | list %}
+            {% set away = persons | selectattr('state','ne','home') | list %}
+            
+            <b>📊 Souhrn:</b>
+            • Doma: {{ home|count }}
+            • Pryč: {{ away|count }}
+            {% else %}
+            <i>Žádné osoby nenalezeny</i>
+            {% endif %}
+          inline_keyboard:
+            - "🔄 Refresh:/callback_persons, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram kalendar
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_calendar
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>📅 Kalendář událostí</b>
+            
+            {% set calendars = states.calendar | list %}
+            {% if calendars | count > 0 %}
+            {% for cal in calendars %}
+            {% if cal.state == 'on' %}
+            <b>{{ cal.name }}</b>
+            {% if cal.attributes.message is defined %}
+            • Událost: {{ cal.attributes.message }}
+            {% endif %}
+            {% if cal.attributes.start_time is defined %}
+            • Start: {{ cal.attributes.start_time }}
+            {% endif %}
+            {% if cal.attributes.end_time is defined %}
+            • Konec: {{ cal.attributes.end_time }}
+            {% endif %}
+            {% if cal.attributes.location is defined %}
+            • Místo: {{ cal.attributes.location }}
+            {% endif %}
+            
+            {% endif %}
+            {% endfor %}
+            
+            {% set active = calendars | selectattr('state','eq','on') | list %}
+            {% if active|count == 0 %}
+            <i>Žádné probíhající události</i>
+            {% endif %}
+            {% else %}
+            <i>Žádný kalendář nenalezen</i>
+            {% endif %}
+          inline_keyboard:
+            - "🔄 Refresh:/callback_calendar, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram slunce
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_sun
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>🌅 Slunce a Měsíc</b>
+            
+            {% if states.sun | list | count > 0 %}
+            {% set sun = states.sun[0] %}
+            <b>☀️ Slunce:</b>
+            • Stav: {{ '🌞 Nad obzorem' if sun.state == 'above_horizon' else '🌙 Pod obzorem' }}
+            {% if sun.attributes.next_rising is defined %}
+            • Východ: {{ as_timestamp(sun.attributes.next_rising)|timestamp_custom('%H:%M') }}
+            {% endif %}
+            {% if sun.attributes.next_setting is defined %}
+            • Západ: {{ as_timestamp(sun.attributes.next_setting)|timestamp_custom('%H:%M') }}
+            {% endif %}
+            {% if sun.attributes.elevation is defined %}
+            • Elevace: {{ sun.attributes.elevation|round(1) }}°
+            {% endif %}
+            {% if sun.attributes.azimuth is defined %}
+            • Azimut: {{ sun.attributes.azimuth|round(1) }}°
+            {% endif %}
+            {% endif %}
+            
+            {% set moon = states.sensor | selectattr('entity_id', 'search', 'moon') | list %}
+            {% if moon | count > 0 %}
+            {% for m in moon %}
+            {% if 'phase' in m.entity_id and m.state != 'unknown' %}
+            <b>🌙 Měsíc:</b>
+            • Fáze: {{ m.state }}
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+          inline_keyboard:
+            - "🔄 Refresh:/callback_sun, 🏠 Menu:/callback_menu"
+
+  - alias: Telegram notifikace
+    trigger:
+      - platform: event
+        event_type: telegram_callback
+        event_data:
+          command: /callback_notifications
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>🗒️ Aktivní notifikace</b>
+            
+            {% set notifications = states.persistent_notification | list %}
+            {% if notifications | count > 0 %}
+            {% for notif in notifications %}
+            <b>{{ notif.attributes.title if notif.attributes.title is defined else 'Notifikace' }}</b>
+            • {{ notif.attributes.message if notif.attributes.message is defined else notif.state }}
+            {% if notif.attributes.created_at is defined %}
+            • Vytvořeno: {{ relative_time(notif.attributes.created_at) }}
+            {% endif %}
+            
+            {% endfor %}
+            {% else %}
+            <b>✅ Žádné aktivní notifikace</b>
+            {% endif %}
+          inline_keyboard:
+            - "🔄 Refresh:/callback_notifications, 🏠 Menu:/callback_menu"
+
+  # BONUS - RYCHLÉ AKCE
+  - alias: Telegram rychle akce menu
+    trigger:
+      - platform: event
+        event_type: telegram_command
+        event_data:
+          command: /actions
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          message: "⚡ Rychlé akce"
+          inline_keyboard:
+            - "🏃 Odcházím:/action_leaving, 🛏️ Jdu spát:/action_sleep"
+            - "🏠 Jsem doma:/action_arriving, 🎬 Film:/action_movie"
+            - "🔄 Restart HA:/action_restart, 🏠 Menu:/callback_menu"
+
+  # KVALITA VZDUCHU
+  - alias: Telegram kvalita vzduchu
+    trigger:
+      - platform: event
+        event_type: telegram_command
+        event_data:
+          command: /air
+    action:
+      - service: telegram_bot.send_message
+        data:
+          target: "{{ trigger.event.data.chat_id }}"
+          parse_mode: html
+          message: |
+            <b>💨 Kvalita vzduchu</b>
+            
+            {% set co2 = states.sensor | selectattr('attributes.device_class','eq','carbon_dioxide') | list %}
+            {% if co2 | count > 0 %}
+            <b>CO2:</b>
+            {% for s in co2 %}
+            {% if s.state != 'unknown' and s.state != 'unavailable' %}
+            • {{ s.name }}: {{ s.state }} ppm
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+            
+            {% set humidity = states.sensor | selectattr('attributes.device_class','eq','humidity') | list %}
+            {% if humidity | count > 0 %}
+            <b>💧 Vlhkost:</b>
+            {% for s in humidity %}
+            {% if s.state != 'unknown' and s.state != 'unavailable' %}
+            • {{ s.name }}: {{ s.state }}%
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+            
+            {% set aqi = states.sensor | selectattr('entity_id', 'search', 'aqi|air_quality') | list %}
+            {% if aqi | count > 0 %}
+            <b>🌫️ AQI:</b>
+            {% for s in aqi %}
+            {% if s.state != 'unknown' and s.state != 'unavailable' %}
+            • {{ s.name }}: {{ s.state }}
+            {% endif %}
+            {% endfor %}
+            {% endif %}
+          inline_keyboard:
+            - "🔄 Refresh:/air, 🏠 Menu:/callback_menu"
