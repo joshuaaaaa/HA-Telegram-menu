@@ -2,7 +2,8 @@
 
 Komplexní Telegram bot menu pro ovládání a monitoring Home Assistant přes Telegram.
 
-<img width="345" height="414" alt="image" src="https://github.com/user-attachments/assets/83ce6eef-c048-467d-808e-1c5ac6fd4394" />
+<img width="340" height="419" alt="image" src="https://github.com/user-attachments/assets/cf77e33a-6426-49da-a210-50c4e5051e3f" />
+
 
 ## 📋 Obsah
 
